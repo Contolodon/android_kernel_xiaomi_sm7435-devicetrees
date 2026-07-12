@@ -9,7 +9,7 @@ jobs:
       - name: Checkout Kernel Source
         uses: actions/checkout@v4
         with:
-          repository: Contolodon/android_kernel_common-5.10
+          repository: garnet-playground/android_kernel_xiaomi_sm7435
           path: kernel_source
 
       - name: Setup Dependencies
@@ -27,8 +27,8 @@ jobs:
           cd kernel_source
           export ARCH=arm64
           export CROSS_COMPILE=aarch64-linux-gnu-
-          make gki_defconfig
-          make -j$(nproc) ARCH=arm64 CROSS_COMPILE=aarch64-linux-gnu- dtbs
+          make vendor/garnet_GKI.config
+          make -j$(nproc) ARCH=arm64 CROSS_COMPILE=aarch64-linux-gnu- dtbo
 
           # Ini kunci untuk melacak file
           echo "--- MENCARI FILE IMG ---"
