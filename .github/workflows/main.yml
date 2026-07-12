@@ -13,14 +13,42 @@ jobs:
         run: |
           git clone https://github.com/Contolodon/android_kernel_xiaomi_sm7435-devicetrees.git -b lineage-23 devicetree
 
+      - name: Clone Kernel dt-bindings Headers
+        run: |
+          git clone --depth 1 --filter=blob:none --sparse https://github.com/garnet-playground/android_kernel_xiaomi_sm7435.git -b lineage-23 kernel
+          cd kernel
+          git sparse-checkout set include/dt-bindings
+
       - name: Build DTBO
         run: |
-         cd devicetree
-         printf '/dts-v1/;\n/plugin/;\n\n #include "qcom/parrot-gpu.dtsi"\n' > overlay.dts
-         cpp -nostdinc -undef -x assembler-with-cpp \
-         -I. -Ibindings \
-         overlay.dts temp.dts
-         dtc -@ -I dts -O dtb -o gpu-oc.dtbo temp.dts
+          cd devicetree
+          cat > overlay.dts << 'EOF'
+          /dts-v1/;
+          /plugin/;
+
+          #include <dt-bindings/interconnect/qcom,icc.h>
+          #include <dt-bindings/interconnect/qcom,parrot.h>
+          #include <dt-bindings/interrupt-controller/arm-gic.h>
+          #include <dt-bindings/interrupt-controller/irq.h>
+          #include <dt-bindings/soc/qcom,ipcc.h>
+          #include <dt-bindings/soc/qcom,rpmh-rsc.h>
+          #include <dt-bindings/clock/qcom,rpmh.h>
+          #include <dt-bindings/clock/qcom,camcc-parrot.h>
+          #include <dt-bindings/clock/qcom,dispcc-parrot.h>
+          #include <dt-bindings/clock/qcom,gcc-parrot.h>
+          #include <dt-bindings/clock/qcom,gpucc-parrot.h>
+          #include <dt-bindings/clock/qcom,videocc-parrot.h>
+          #include <dt-bindings/regulator/qcom,rpmh-regulator-levels.h>
+          #include <dt-bindings/gpio/gpio.h>
+          #include <dt-bindings/spmi/spmi.h>
+
+          #include "qcom/parrot-gpu.dtsi"
+          EOF
+          cpp -nostdinc -undef -x assembler-with-cpp \
+            -I. \
+            -I../kernel/include \
+            overlay.dts temp.dts
+          dtc -@ -I dts -O dtb -o gpu-oc.dtbo temp.dts
 
       - uses: actions/upload-artifact@v4
         with:
