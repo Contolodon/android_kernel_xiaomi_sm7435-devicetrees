@@ -29,3 +29,11 @@ jobs:
           export CROSS_COMPILE=aarch64-linux-gnu-
           make gki_defconfig
           make -j$(nproc) ARCH=arm64 CROSS_COMPILE=aarch64-linux-gnu- dtbs
+
+          # Ini kunci untuk melacak file
+          echo "--- MENCARI FILE IMG ---"
+          find . -name "*.img"
+          echo "--- MENCARI FILE DTB/DTBO ---"
+          find . -name "*.dtb" -o -name "*.dtbo"
+          echo "--- ISI FOLDER ARCH/ARM64/BOOT ---"
+          ls -R arch/arm64/boot/
