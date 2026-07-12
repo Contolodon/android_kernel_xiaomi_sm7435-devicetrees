@@ -10,7 +10,7 @@ jobs:
       - name: Checkout Kernel Source
         uses: actions/checkout@v4
         with:
-          repository: Contolodon/android_kernel_common-5.10.git # Repo utama kernel
+          repository: Contolodon/android_kernel_common-5.10 # Repo utama kernel
           path: kernel_source
 
       - name: Clone Your Device Tree
