@@ -8,7 +8,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout Kernel Source
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
         with:
           repository: Contolodon/android_kernel_common-5.10.git # Repo utama kernel
           path: kernel_source
@@ -30,7 +30,7 @@ jobs:
           
 
       - name: Upload DTBO Artifact
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: dtbo-image
           path: kernel_source/out/arch/arm64/boot/dtbo.img
