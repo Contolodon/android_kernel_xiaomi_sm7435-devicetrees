@@ -1,0 +1,34 @@
+name: Build DTBO Only
+
+on:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Kernel Source
+        uses: actions/checkout@v3
+        with:
+          repository: garnet-playground/android_kernel_xiaomi_sm7435 # Repo utama kernel
+          path: kernel_source
+
+      - name: Clone Your Device Tree
+        run: |
+          rm -rf kernel_source/arch/arm64/boot/dts/vendor/qcom
+          git clone https://github.com/Contolodor/android_kernel_xiaomi_sm7435-devicetrees.git -b lineage-23 kernel_source/arch/arm64/boot/dts/vendor/qcom
+
+      - name: Build DTBO
+        run: |
+          cd kernel_source
+          export ARCH=arm64
+          export CROSS_COMPILE=aarch64-linux-gnu-
+          # Pake script build bawaan, tapi targetin ke dtbo aja
+          # Biasanya build.sh punya flag buat build dtbo doang
+          ./build.sh dtbo
+
+      - name: Upload DTBO Artifact
+        uses: actions/upload-artifact@v3
+        with:
+          name: dtbo-image
+          path: kernel_source/out/arch/arm64/boot/dtbo.img
