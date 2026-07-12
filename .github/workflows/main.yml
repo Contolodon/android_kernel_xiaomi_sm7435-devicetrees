@@ -15,11 +15,12 @@ jobs:
 
       - name: Build DTBO
         run: |
-          cd devicetree
-          cpp -nostdinc -undef -x assembler-with-cpp \
-            -I. -Ibindings \
-            qcom/parrot-gpu.dtsi temp.dts
-          dtc -@ -I dts -O dtb -o gpu-oc.dtbo temp.dts
+         cd devicetree
+         printf '/dts-v1/;\n/plugin/;\n\n#include "qcom/parrot-gpu.dtsi"\n' > overlay.dts
+         cpp -nostdinc -undef -x assembler-with-cpp \
+         -I. -Ibindings \
+         overlay.dts temp.dts
+         dtc -@ -I dts -O dtb -o gpu-oc.dtbo temp.dts
 
       - uses: actions/upload-artifact@v4
         with:
