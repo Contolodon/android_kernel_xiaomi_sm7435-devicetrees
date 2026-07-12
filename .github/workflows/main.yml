@@ -74,20 +74,67 @@ jobs:
           ui_print "=============================="
           ui_print " "
 
-          DTBO=/dev/block/by-name/dtbo
-          if [ ! -e "$DTBO" ]; then
+          # Detect active slot (A/B device)
+          SLOT=$(getprop ro.boot.slot_suffix 2>/dev/null)
+          if [ -z "$SLOT" ]; then
+              SLOT=$(cat /proc/cmdline 2>/dev/null | tr ' ' '\n' | grep '^androidboot.slot_suffix=' | cut -d= -f2)
+          fi
+          if [ -z "$SLOT" ]; then
+              SLOT=$(cat /proc/cmdline 2>/dev/null | tr ' ' '\n' | grep '^androidboot.slot=' | cut -d= -f2)
+              [ -n "$SLOT" ] && SLOT="_$SLOT"
+          fi
+
+          ui_print "Active slot: ${SLOT:-none (A-only)}"
+
+          # Find dtbo partition — try slot-suffixed first, then fallback
+          DTBO=""
+          for base in /dev/block/by-name /dev/block/bootdevice/by-name; do
+              for name in dtbo${SLOT} dtbo; do
+                  if [ -e "${base}/${name}" ]; then
+                      DTBO="${base}/${name}"
+                      break 2
+                  fi
+              done
+          done
+
+          if [ -z "$DTBO" ] || [ ! -e "$DTBO" ]; then
               ui_print "ERROR: dtbo partition not found!"
+              ui_print " "
+              ui_print "Tried:"
+              ui_print "  /dev/block/by-name/dtbo${SLOT}"
+              ui_print "  /dev/block/bootdevice/by-name/dtbo${SLOT}"
+              ui_print " "
+              ui_print "Partitions containing 'dtbo':"
+              ls /dev/block/by-name/ 2>/dev/null | grep -i dtbo | while read p; do
+                  ui_print "  /dev/block/by-name/$p"
+              done
+              ls /dev/block/bootdevice/by-name/ 2>/dev/null | grep -i dtbo | while read p; do
+                  ui_print "  /dev/block/bootdevice/by-name/$p"
+              done
               exit 1
           fi
 
-          # Backup stock dtbo first
-          ui_print "Backing up stock dtbo to /sdcard/dtbo-stock-backup.img..."
-          dd if=$DTBO of=/sdcard/dtbo-stock-backup.img bs=4096 2>/dev/null
+          ui_print "Found dtbo: $DTBO"
 
-          ui_print "Extracting GPU OC DTBO..."
+          # Backup stock dtbo
+          BACKUP_DIR=/storage/emulated/0/dtbo-backups
+          mkdir -p $BACKUP_DIR 2>/dev/null
+          BACKUP=$BACKUP_DIR/dtbo-stock-backup-$(date +%Y%m%d_%H%M%S).img
+          ui_print "Backing up stock dtbo..."
+          dd if=$DTBO of=$BACKUP bs=4096 2>/dev/null
+          ui_print "Backup saved: $BACKUP"
+
+          # Extract from zip
           cd /tmp
-          rm -f gpu-oc.dtbo
-          unzip -o "$ZIP" gpu-oc.dtbo 2>/dev/null
+          rm -f dtbo.img gpu-oc.dtbo 2>/dev/null
+
+          # Try toybox unzip (live Android), then unzip
+          if command -v toybox >/dev/null 2>&1; then
+              toybox unzip -o "$ZIP" gpu-oc.dtbo 2>/dev/null
+          fi
+          if [ ! -f gpu-oc.dtbo ]; then
+              unzip -o "$ZIP" gpu-oc.dtbo 2>/dev/null
+          fi
 
           if [ ! -f gpu-oc.dtbo ]; then
               ui_print "ERROR: gpu-oc.dtbo not found in zip!"
@@ -101,24 +148,15 @@ jobs:
 
           ui_print " "
           ui_print "Done! GPU OC DTBO flashed."
-          ui_print "Stock backup saved at:"
-          ui_print "  /sdcard/dtbo-stock-backup.img"
+          ui_print "Stock backup: $BACKUP"
           ui_print " "
-          ui_print "If bootloop, reflash stock via:"
-          ui_print "  fastboot flash dtbo dtbo-stock-backup.img"
+          ui_print "Reboot to apply changes."
           ui_print " "
           EBIN
           chmod +x flashable/META-INF/com/google/android/update-binary
 
           cd flashable
           zip -r ../gpu-oc-flashable.zip META-INF gpu-oc.dtbo
-
-      - uses: actions/upload-artifact@v4
-        with:
-          name: gpu-oc-dtbo
-          path: |
-            devicetree/gpu-oc.dtbo
-            gpu-oc-flashable.zip
 
       - uses: actions/upload-artifact@v4
         with:
