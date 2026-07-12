@@ -19,8 +19,9 @@ jobs:
 
       - name: Clone Your Device Tree
         run: |
-          mkdir -p kernel_source/arch/arm64/boot/dts/vendor/qcom
+          # Hapus folder target jika ada, abaikan jika tidak ada
           rm -rf kernel_source/arch/arm64/boot/dts/vendor/qcom
+          # Langsung clone tanpa perlu membuat folder secara manual
           git clone https://github.com/Contolodon/android_kernel_xiaomi_sm7435-devicetrees.git -b lineage-23 kernel_source/arch/arm64/boot/dts/vendor/qcom
 
       - name: Build DTBO
