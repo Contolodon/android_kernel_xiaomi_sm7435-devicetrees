@@ -29,7 +29,7 @@ jobs:
           export ARCH=arm64
           export CROSS_COMPILE=aarch64-linux-gnu-
           find arch/arm64/configs -name "*garnet*"
-          make -j$(nproc) ARCH=arm64 CROSS_COMPILE=aarch64-linux-gnu- dtbs
+          make -j$(nproc) ARCH=arm64 CROSS_COMPILE=aarch64-linux-gnu- Image
 
           # Ini kunci untuk melacak file
           echo "--- MENCARI FILE IMG ---"
