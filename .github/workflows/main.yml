@@ -19,17 +19,9 @@ jobs:
 
       - name: Clone Your Device Tree
         run: |
-          # 1. Clone ke folder terpisah dulu supaya tidak error path
           git clone https://github.com/Contolodon/android_kernel_xiaomi_sm7435-devicetrees.git -b lineage-23 temp_tree
-          
-          # 2. Cari tahu di mana folder 'vendor' yang sebenarnya ada
-          echo "Mencari lokasi vendor:"
-          find kernel_source -type d -name "vendor"
-          
-          # 3. Pindahkan hasil clone ke folder qcom yang sudah pasti ada
-          # Kalau perintah di bawah gagal, kita akan tahu di mana masalahnya
-          mkdir -p kernel_source/arch/arm64/boot/dts/vendor/
-          cp -r temp_tree/* kernel_source/arch/arm64/boot/dts/vendor/qcom/
+          find kernel_source -type d -name "dts"
+          cp -r temp_tree/* kernel_source/
           
       - name: Build DTBO
         run: |
