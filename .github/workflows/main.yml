@@ -16,7 +16,7 @@ jobs:
       - name: Build DTBO
         run: |
          cd devicetree
-         printf '/dts-v1/;\n/plugin/;\n\n#include "qcom/parrot-gpu.dtsi"\n' > overlay.dts
+         printf '/dts-v1/;\n/plugin/;\n\n #include "qcom/parrot-gpu.dtsi"\n' > overlay.dts
          cpp -nostdinc -undef -x assembler-with-cpp \
          -I. -Ibindings \
          overlay.dts temp.dts
