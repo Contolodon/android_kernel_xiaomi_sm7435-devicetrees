@@ -28,7 +28,9 @@ jobs:
           cd kernel_source
           export ARCH=arm64
           export CROSS_COMPILE=aarch64-linux-gnu-
-          make O=out ARCH=arm64 garnet_GKI.config
+          make O=out ARCH=arm64 vendor/garnet_GKI.config || \
+          make O=out ARCH=arm64 KBUILD_DEFCONFIG=vendor/garnet_GKI.config defconfig || \
+          make O=out ARCH=arm64 garnet_defconfig
           make -j$(nproc) ARCH=arm64 CROSS_COMPILE=aarch64-linux-gnu- dtbo
 
           # Ini kunci untuk melacak file
