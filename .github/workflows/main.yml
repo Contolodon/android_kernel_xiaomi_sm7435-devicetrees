@@ -6,35 +6,22 @@ jobs:
   build:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout Kernel Source
-        uses: actions/checkout@v4
-        with:
-          repository: garnet-playground/android_kernel_xiaomi_sm7435
-          path: kernel_source
+      - name: Install dtc
+        run: sudo apt-get update && sudo apt-get install -y device-tree-compiler build-essential
 
-      - name: Setup Dependencies
+      - name: Clone Device Tree
         run: |
-          sudo apt-get update
-          sudo apt-get install -y bc bison build-essential flex libelf-dev libssl-dev python3 clang lld llvm gcc-aarch64-linux-gnu
+          git clone https://github.com/Contolodon/android_kernel_xiaomi_sm7435-devicetrees.git -b lineage-23 devicetree
 
-      - name: Clone Your Device Tree
-        run: |
-          git clone https://github.com/Contolodon/android_kernel_xiaomi_sm7435-devicetrees.git -b lineage-23 temp_tree
-          find kernel_source -type d -name "dts"
-          cp -r temp_tree/* kernel_source/
-          
       - name: Build DTBO
         run: |
-          cd kernel_source
-          export ARCH=arm64
-          export CROSS_COMPILE=aarch64-linux-gnu-
-          make O=out vendor/garnet_GKI_defconfig
-          make -j$(nproc) Image
+          cd devicetree
+          cpp -nostdinc -undef -x assembler-with-cpp \
+            -I. -Ibindings \
+            qcom/parrot-gpu.dtsi temp.dts
+          dtc -@ -I dts -O dtb -o gpu-oc.dtbo temp.dts
 
-          # Ini kunci untuk melacak file
-          echo "--- MENCARI FILE IMG ---"
-          find . -name "*.img"
-          echo "--- MENCARI FILE DTB/DTBO ---"
-          find . -name "*.dtb" -o -name "*.dtbo"
-          echo "--- ISI FOLDER ARCH/ARM64/BOOT ---"
-          ls -R arch/arm64/boot/
+      - uses: actions/upload-artifact@v4
+        with:
+          name: gpu-oc-dtbo
+          path: devicetree/gpu-oc.dtbo
