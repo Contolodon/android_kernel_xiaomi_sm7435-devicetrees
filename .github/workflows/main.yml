@@ -28,8 +28,8 @@ jobs:
           cd kernel_source
           export ARCH=arm64
           export CROSS_COMPILE=aarch64-linux-gnu-
-          make vendor/garnet_GKI_defconfig
-          make -j$(nproc) ARCH=arm64 CROSS_COMPILE=aarch64-linux-gnu- Image
+          make O=out vendor/garnet_GKI_defconfig
+          make -j$(nproc) Image
 
           # Ini kunci untuk melacak file
           echo "--- MENCARI FILE IMG ---"
