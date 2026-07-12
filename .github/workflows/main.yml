@@ -10,7 +10,7 @@ jobs:
       - name: Checkout Kernel Source
         uses: actions/checkout@v3
         with:
-          repository: garnet-playground/android_kernel_xiaomi_sm7435 # Repo utama kernel
+          repository: Contolodon/android_kernel_common-5.10.git # Repo utama kernel
           path: kernel_source
 
       - name: Clone Your Device Tree
@@ -25,7 +25,9 @@ jobs:
           export CROSS_COMPILE=aarch64-linux-gnu-
           # Pake script build bawaan, tapi targetin ke dtbo aja
           # Biasanya build.sh punya flag buat build dtbo doang
-          ./build.sh dtbo
+          make gki_defconfig
+          make O=out ARCH=arm64 CROSS_COMPILE=aarch64-linux-gnu- dtbo.img
+          
 
       - name: Upload DTBO Artifact
         uses: actions/upload-artifact@v3
