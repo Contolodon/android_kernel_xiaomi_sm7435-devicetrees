@@ -53,7 +53,7 @@
 			<MHZ_TO_KBPS(1353, 4)>,	/* index=5  SVS_L1	*/
 			<MHZ_TO_KBPS(1555, 4)>,	/* index=6  NOM		*/
 			<MHZ_TO_KBPS(1708, 4)>,	/* index=7  NOM		*/
-			<MHZ_TO_KBPS(2133, 4)>;	/* index=8  TURBO	*/
+			<MHZ_TO_KBPS(2233, 4)>;	/* index=8  TURBO	*/
 
 		qcom,bus-table-ddr8 =
 			<MHZ_TO_KBPS(0, 4)>,	/* index=0		*/
@@ -66,7 +66,7 @@
 			<MHZ_TO_KBPS(1708, 4)>,	/* index=7  SVS_L1	*/
 			<MHZ_TO_KBPS(2092, 4)>,	/* index=8  NOM		*/
 			<MHZ_TO_KBPS(2736, 4)>,	/* index=9  TURBO	*/
-			<MHZ_TO_KBPS(3196, 4)>;	/* index=10  TURBO	*/
+			<MHZ_TO_KBPS(3296, 4)>;	/* index=10  TURBO	*/
 
 		nvmem-cells = <&gpu_speed_bin>, <&gpu_gaming_bin>;
 		nvmem-cell-names = "speed_bin", "gaming_bin";
@@ -722,8 +722,8 @@
 
 				qcom,gpu-pwrlevel@0 {
 					reg = <0>;
-					qcom,gpu-freq = <980000000>;
-					qcom,level = <RPMH_REGULATOR_LEVEL_TURBO_L2>;
+					qcom,gpu-freq = <962000000>;
+					qcom,level = <RPMH_REGULATOR_LEVEL_TURBO_L1>;
 
 					qcom,bus-freq-ddr7 = <8>;
 					qcom,bus-min-ddr7 = <8>;
