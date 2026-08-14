@@ -1,164 +1,182 @@
-name: Build DTBO Only
+name: Build GPU OC DTBO (Garnet)
 
-on: [workflow_dispatch]
+on:
+  workflow_dispatch:
+  push:
+    branches: [ main ]
 
 jobs:
-  build:
-    runs-on: ubuntu-latest
+  build-dtbo:
+    runs-on: ubuntu-22.04
+
     steps:
-      - name: Install dtc
-        run: sudo apt-get update && sudo apt-get install -y device-tree-compiler build-essential zip
-
-      - name: Clone Device Tree
+      - name: Install dependencies
         run: |
-          git clone https://github.com/Contolodon/android_kernel_xiaomi_sm7435-devicetrees.git -b lineage-23 devicetree
+          sudo apt-get update
+          sudo apt-get install -y \
+            device-tree-compiler \
+            cpp \
+            git \
+            bc bison flex python3
 
-      - name: Clone Kernel dt-bindings Headers
+      - name: Clone devicetree repo
         run: |
-          git clone --depth 1 --filter=blob:none --sparse https://github.com/garnet-playground/android_kernel_xiaomi_sm7435.git -b lineage-23 kernel
-          cd kernel
-          git sparse-checkout set include/dt-bindings
+          git clone --depth=1 \
+            https://github.com/Contolodon/android_kernel_xiaomi_sm7435-devicetrees.git \
+            -b lineage-23 \
+            devicetree
+
+      - name: Verify GPU DTS file exists
+        run: |
+          ls -la devicetree/qcom/parrot-gpu.dtsi
+          echo "=== Current GPU OPP entries ==="
+          grep -n "opp-hz\|opp-microvolt\|TURBO" devicetree/qcom/parrot-gpu.dtsi | head -30
+
+      - name: Check TURBO_L2 availability in kernel headers
+        run: |
+          # Cari header RPMH levels dari repo kernel source
+          git clone --depth=1 \
+            https://github.com/garnet-playground/android_kernel_xiaomi_sm7435.git \
+            -b lineage-23 \
+            kernel_source --filter=blob:none --sparse
+          cd kernel_source
+          git sparse-checkout set include/dt-bindings/regulator/
+          git checkout
+          cat include/dt-bindings/regulator/qcom,rpmh-regulator-levels.h | grep TURBO || true
+
+      - name: Apply GPU OC patch to parrot-gpu.dtsi
+        run: |
+          cd devicetree
+          # Cek format yang digunakan
+          echo "=== Checking DTS format ==="
+          grep -n "opp-table\|gpu-opp-table\|gpu-pwrlevels" qcom/parrot-gpu.dtsi | head -10
+
+          # Cek frekuensi tertinggi saat ini
+          HIGHEST=$(grep "opp-hz" qcom/parrot-gpu.dtsi | sort -t'<' -k3 -rn | head -1)
+          echo "Highest frequency entry: $HIGHEST"
+
+          # Cek apakah TURBO_L2 tersedia
+          TURBO_L2_EXISTS=$(grep -c "TURBO_L2" ../kernel_source/include/dt-bindings/regulator/qcom,rpmh-regulator-levels.h || echo "0")
+          echo "TURBO_L2 exists: $TURBO_L2_EXISTS"
+
+          if [ "$TURBO_L2_EXISTS" -gt "0" ]; then
+            VOLTAGE_LEVEL="RPMH_REGULATOR_LEVEL_TURBO_L2"
+          else
+            VOLTAGE_LEVEL="336"  # nilai manual TURBO_L2
+          fi
+
+          echo "Using voltage level: $VOLTAGE_LEVEL"
+
+          # Dapatkan nilai opp-peak-kBps dari entry 951 MHz
+          PEAK_KBPS=$(grep -A5 "951000000" qcom/parrot-gpu.dtsi | grep "opp-peak-kBps" | grep -o '[0-9]*' | head -1)
+          PEAK_KBPS=${PEAK_KBPS:-8064000}
+          echo "Using peak-kBps: $PEAK_KBPS"
+
+          # Tambahkan entry 975 MHz di gpu_opp_table
+          # Cari baris sebelum opp-951000000 dan insert entry baru
+          python3 << 'PYEOF'
+          import re
+
+          with open('qcom/parrot-gpu.dtsi', 'r') as f:
+              content = f.read()
+
+          new_entry_opp = '''
+          opp-975000000 {
+              opp-hz = /bits/ 64 <975000000>;
+              opp-microvolt = <RPMH_REGULATOR_LEVEL_TURBO_L2>;
+              opp-peak-kBps = <8064000>;
+          };
+
+          '''
+
+          # Insert sebelum entry 951 MHz di opp_table
+          content = content.replace(
+              '\n\t\topp-951000000 {',
+              new_entry_opp + '\t\topp-951000000 {'
+          )
+
+          # Update qcom,gpu-pwrlevels section
+          # Ganti reg=<0> yang ada (951 MHz) jadi reg=<1>, dst
+          # Tambahkan entry 975 MHz sebagai reg=<0>
+          new_pwrlevel = '''
+          qcom,gpu-pwrlevel@0 {
+              reg = <0>;
+              qcom,gpu-freq = <975000000>;
+              qcom,bus-freq = <8>;
+              qcom,bus-min = <8>;
+              qcom,bus-max = <8>;
+          };
+
+          '''
+
+          # Geser semua reg yang ada +1
+          for i in range(10, -1, -1):
+              content = content.replace(
+                  f'qcom,gpu-pwrlevel@{i} {{\n\t\t\t\treg = <{i}>;',
+                  f'qcom,gpu-pwrlevel@{i+1} {{\n\t\t\t\treg = <{i+1}>;'
+              )
+
+          # Tambahkan entry baru di awal pwrlevels
+          content = content.replace(
+              'qcom,gpu-pwrlevel@1 {',
+              new_pwrlevel + 'qcom,gpu-pwrlevel@1 {',
+              1  # hanya replace pertama kali
+          )
+
+          with open('qcom/parrot-gpu.dtsi', 'w') as f:
+              f.write(content)
+
+          print("Done patching parrot-gpu.dtsi")
+          PYEOF
+
+          echo "=== Verifying patch ==="
+          grep -n "975000000\|951000000" qcom/parrot-gpu.dtsi | head -10
+
+      - name: Find garnet top-level DTS file
+        run: |
+          cd devicetree
+          echo "=== Looking for garnet DTS files ==="
+          find . -name "*.dts" | grep -i "garnet" || \
+          find . -name "*.dts" | grep -i "parrot" | head -10
 
       - name: Build DTBO
         run: |
           cd devicetree
-          cat > overlay.dts << 'EOF'
-          /dts-v1/;
-          /plugin/;
 
-          #include <dt-bindings/interconnect/qcom,icc.h>
-          #include <dt-bindings/interconnect/qcom,parrot.h>
-          #include <dt-bindings/interrupt-controller/arm-gic.h>
-          #include <dt-bindings/interrupt-controller/irq.h>
-          #include <dt-bindings/soc/qcom,ipcc.h>
-          #include <dt-bindings/soc/qcom,rpmh-rsc.h>
-          #include <dt-bindings/clock/qcom,rpmh.h>
-          #include <dt-bindings/clock/qcom,camcc-parrot.h>
-          #include <dt-bindings/clock/qcom,dispcc-parrot.h>
-          #include <dt-bindings/clock/qcom,gcc-parrot.h>
-          #include <dt-bindings/clock/qcom,gpucc-parrot.h>
-          #include <dt-bindings/clock/qcom,videocc-parrot.h>
-          #include <dt-bindings/regulator/qcom,rpmh-regulator-levels.h>
-          #include <dt-bindings/gpio/gpio.h>
-          #include <dt-bindings/spmi/spmi.h>
-
-          #include "qcom/parrot-gpu.dtsi"
-          EOF
-          cpp -nostdinc -undef -x assembler-with-cpp \
-            -I. \
-            -I../kernel/include \
-            overlay.dts temp.dts
-          dtc -@ -I dts -O dtb -o gpu-oc.dtbo temp.dts
-
-      - name: Create Flashable ZIP
-        run: |
-          mkdir -p flashable/META-INF/com/google/android
-          cp devicetree/gpu-oc.dtbo flashable/
-
-          cat > flashable/META-INF/com/google/android/updater-script << 'USCRIPT'
-          # GPU OC DTBO Flasher for Poco X6 5G (garnet)
-          USCRIPT
-
-          cat > flashable/META-INF/com/google/android/update-binary << 'EBIN'
-          #!/sbin/sh
-          umask 022
-          OUTFD=$2
-          ZIP=$3
-          [ "$OUTFD" ] || OUTFD=1
-          ui_print() { echo -e "ui_print $1\nui_print" >&$OUTFD; }
-
-          ui_print " "
-          ui_print "=============================="
-          ui_print "  GPU OC DTBO Flasher"
-          ui_print "  Poco X6 5G (garnet)"
-          ui_print "=============================="
-          ui_print " "
-
-          # Detect active slot (A/B device)
-          SLOT=$(getprop ro.boot.slot_suffix 2>/dev/null)
-          if [ -z "$SLOT" ]; then
-              SLOT=$(cat /proc/cmdline 2>/dev/null | tr ' ' '\n' | grep '^androidboot.slot_suffix=' | cut -d= -f2)
-          fi
-          if [ -z "$SLOT" ]; then
-              SLOT=$(cat /proc/cmdline 2>/dev/null | tr ' ' '\n' | grep '^androidboot.slot=' | cut -d= -f2)
-              [ -n "$SLOT" ] && SLOT="_$SLOT"
+          # Temukan file DTS garnet
+          GARNET_DTS=$(find . -name "*.dts" | grep -i "garnet" | head -1)
+          if [ -z "$GARNET_DTS" ]; then
+            GARNET_DTS=$(find . -name "*parrot*.dts" | grep -v "overlay\|sa" | head -1)
           fi
 
-          ui_print "Active slot: ${SLOT:-none (A-only)}"
+          echo "Using DTS: $GARNET_DTS"
 
-          # Find dtbo partition — try slot-suffixed first, then fallback
-          DTBO=""
-          for base in /dev/block/by-name /dev/block/bootdevice/by-name; do
-              for name in dtbo${SLOT} dtbo; do
-                  if [ -e "${base}/${name}" ]; then
-                      DTBO="${base}/${name}"
-                      break 2
-                  fi
-              done
-          done
+          # Include path dari kernel source header
+          INCLUDE_PATHS="-I ../kernel_source/include"
 
-          if [ -z "$DTBO" ] || [ ! -e "$DTBO" ]; then
-              ui_print "ERROR: dtbo partition not found!"
-              ui_print " "
-              ui_print "Tried:"
-              ui_print "  /dev/block/by-name/dtbo${SLOT}"
-              ui_print "  /dev/block/bootdevice/by-name/dtbo${SLOT}"
-              ui_print " "
-              ui_print "Partitions containing 'dtbo':"
-              ls /dev/block/by-name/ 2>/dev/null | grep -i dtbo | while read p; do
-                  ui_print "  /dev/block/by-name/$p"
-              done
-              ls /dev/block/bootdevice/by-name/ 2>/dev/null | grep -i dtbo | while read p; do
-                  ui_print "  /dev/block/bootdevice/by-name/$p"
-              done
-              exit 1
-          fi
+          # Preprocessing dengan cpp
+          cpp -nostdinc \
+              -I . \
+              -I qcom \
+              -I ../kernel_source/include \
+              -undef \
+              -x assembler-with-cpp \
+              "${GARNET_DTS}" \
+              garnet-preprocessed.dts
 
-          ui_print "Found dtbo: $DTBO"
+          # Compile dengan dtc
+          dtc -O dtb \
+              -o dtbo.img \
+              -b 0 \
+              -@  \
+              garnet-preprocessed.dts
 
-          # Backup stock dtbo
-          BACKUP_DIR=/storage/emulated/0/dtbo-backups
-          mkdir -p $BACKUP_DIR 2>/dev/null
-          BACKUP=$BACKUP_DIR/dtbo-stock-backup-$(date +%Y%m%d_%H%M%S).img
-          ui_print "Backing up stock dtbo..."
-          dd if=$DTBO of=$BACKUP bs=4096 2>/dev/null
-          ui_print "Backup saved: $BACKUP"
+          echo "=== Build successful ==="
+          ls -lh dtbo.img
 
-          # Extract from zip
-          cd /tmp
-          rm -f dtbo.img gpu-oc.dtbo 2>/dev/null
-
-          # Try toybox unzip (live Android), then unzip
-          if command -v toybox >/dev/null 2>&1; then
-              toybox unzip -o "$ZIP" gpu-oc.dtbo 2>/dev/null
-          fi
-          if [ ! -f gpu-oc.dtbo ]; then
-              unzip -o "$ZIP" gpu-oc.dtbo 2>/dev/null
-          fi
-
-          if [ ! -f gpu-oc.dtbo ]; then
-              ui_print "ERROR: gpu-oc.dtbo not found in zip!"
-              exit 1
-          fi
-
-          ui_print "Flashing to dtbo partition..."
-          dd if=/tmp/gpu-oc.dtbo of=$DTBO bs=4096 2>/dev/null
-          sync
-          rm -f /tmp/gpu-oc.dtbo
-
-          ui_print " "
-          ui_print "Done! GPU OC DTBO flashed."
-          ui_print "Stock backup: $BACKUP"
-          ui_print " "
-          ui_print "Reboot to apply changes."
-          ui_print " "
-          EBIN
-          chmod +x flashable/META-INF/com/google/android/update-binary
-
-          cd flashable
-          zip -r ../gpu-oc-flashable.zip META-INF gpu-oc.dtbo
-
-      - uses: actions/upload-artifact@v4
+      - name: Upload DTBO artifact
+        uses: actions/upload-artifact@v4
         with:
-          name: gpu-oc-flashable-zip
-          path: gpu-oc-flashable.zip
+          name: garnet-gpu-975mhz-dtbo
+          path: devicetree/dtbo.img
+          retention-days: 7
